@@ -1,0 +1,18 @@
+# Secrets / local config
+.env
+*.tfvars
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.json.key
+service-account*.json
+
+# Experiment artefacts
+experiment/results*/.hf_cache/
+experiment/results*/*.tmp
+experiment/results*/il_loss.pt
+*.log
+__pycache__/
+*.pyc
