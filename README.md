@@ -43,12 +43,48 @@ Validation perplexity (lower is better). Zero-shot GPT-2: **35.84**.
 | rsLoRA r64 | 9.44M | 23.96 |
 | rsLoRA r256 | 37.7M | **23.65** |
 
-**Takeaways so far**
+![rank sweep](experiment/results/sweep.png)
+
+**Takeaways**
 - Plain LoRA is flat in rank (25.20, 25.21, 25.21): with `alpha/r` scaling, a higher rank just shrinks the update.
 - rsLoRA keeps improving with rank, and at r=64 and r=256 it **beats full fine-tuning** while training 7.6% / 30% of the weights.
 
-Active learning and optimization-stack results are being added as runs finish; see
-`experiment/results/report.md` and the plots in `experiment/results/`.
+### Active learning (rsLoRA r=64, 25% budget = 1,164 unique blocks)
+
+| strategy | val PPL | vs random | selection overhead |
+|---|---|---|---|
+| full data (3,200 blocks, reference) | 23.96 | -0.33 | - |
+| **`rho` (RHO-LOSS)** | **24.19** | **-0.10** | +130 s scoring, plus one-off irreducible-loss model training |
+| `random` | 24.29 | - | 0 |
+| `max_loss_trim` | 24.42 | +0.13 | +124 s |
+| `max_loss` | 24.43 | +0.14 | +124 s |
+
+![active learning](experiment/results/active_learning.png)
+
+- **RHO-LOSS is the only strategy that beats random**, and it closes ~30% of the gap to full data with 36% of
+  the unique blocks. Its curve tracks the full-data run closely throughout. The final margin (0.10 PPL, ~0.4%)
+  is single-seed, though, and within noise; it needs more seeds to be a claim.
+- **Max-loss selection loses to random** (+0.14 PPL), with or without trimming the top 5% of outliers: it picks
+  hard-but-unlearnable text. This is the textbook failure mode that RHO-LOSS is designed to fix.
+- On clean, in-domain WikiText-2, even random 25% is only 0.33 PPL behind full data, so there is little room for
+  any selection method; the literature predicts ~1% at best here.
+
+### Optimization stack (rsLoRA r=256)
+
+| run | val PPL |
+|---|---|
+| **`opt_lr`: LR 3e-4 -> 1e-3** | **23.28** (best overall, 0.72 below full FT) |
+| `opt_lr_wsd`: + WSD schedule | 23.58 |
+| rsLoRA r256 baseline (LR 3e-4) | 23.65 |
+| `opt_lr_wsd_loraplus`: + LoRA+ (B at 4e-3) | 25.43 (unstable) |
+
+![optimizations](experiment/results/optimizations.png)
+
+- **Just tuning the LR is the single biggest win**, as the literature review predicted: 23.65 -> 23.28.
+- WSD did not help over cosine in a 400-step run, and LoRA+ on top of an already-high LR made B's LR (4e-3)
+  too large: the curve goes unstable. LoRA+ needs its base LR lowered, not stacked on a tuned one.
+
+Full table (time, tokens/s, memory, steps-to-target): [`experiment/results/report.md`](experiment/results/report.md).
 
 ## Ideas: how much further can this go?
 
